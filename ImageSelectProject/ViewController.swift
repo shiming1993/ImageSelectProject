@@ -31,7 +31,7 @@ class ViewController: UIViewController {
         
         
         //PreviewPictureView是单纯的预览图片的控件，不可编辑
-        let previewView = PreviewPictureView(frame: CGRect(x: 0, y: 170, width: self.view.frame.size.width, height: 100), eachCount: 4, itemMargin: 10)
+        let previewView = PreviewPictureView(frame: CGRect(x: 0, y: 170, width: self.view.frame.size.width, height: 0), eachCount: 4, itemMargin: 10)
         //添加要查看的图片
         previewView.addImagesToImageArray(array: [])
         self.view.addSubview(view)

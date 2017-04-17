@@ -60,11 +60,15 @@ class ImageSelectView: UIView {
     //UIImagePickerController
     fileprivate var pickerVC : UIImagePickerController?
     //以下是预览图片所需变量
-    fileprivate var scrollView : UIScrollView?
+    fileprivate var showScrollView = ImageScrollView()
+    fileprivate var bgView : UIView?
     fileprivate var laseImageView : UIImageView?
     fileprivate var originalFrame : CGRect?
     //记录数组中是否有添加图片的image
     fileprivate var hasAddImage = true
+    
+    
+    
     
     init(frame: CGRect,eachCount: Int,itemMargin: CGFloat) {
         super.init(frame: frame)
@@ -86,10 +90,32 @@ class ImageSelectView: UIView {
         self.createImagePickerController()
         self.createAlertCtr()
         self.doLayout()
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(changeImage(noti:)), name: NSNotification.Name(rawValue: "changeImage"), object: nil)
+        bgView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
+        bgView!.backgroundColor = UIColor.black
+        showScrollView.frame = CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height)
+        showScrollView.isUserInteractionEnabled = true
+        let recoverPicture = UITapGestureRecognizer(target: self, action: #selector(recoverPicture(tap:)))
+        showScrollView.addGestureRecognizer(recoverPicture)
     }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    func changeImage(noti: Notification){
+        let index = noti.userInfo?["value"] as! Int
+        let section = index/eachSectionCount!
+        let row = index%eachSectionCount!
+        let indexPath = NSIndexPath(row: row, section: section)
+        let cell : ImageCollectionCell = imageCollectionView?.cellForItem(at: indexPath as IndexPath) as! ImageCollectionCell
+        //获取cell相对于整个屏幕的位置
+        let window = UIApplication.shared.keyWindow
+        let rect = cell.convert((cell.bounds), to: window)
+        
+        self.laseImageView?.image = cell.imgView?.image
+        self.originalFrame = rect
     }
     
     func resetFrame() {
@@ -205,50 +231,57 @@ class ImageSelectView: UIView {
     
     //预览图片
     func previewPicture(image: UIImage,indexPath: IndexPath) {
-        let bgView = UIScrollView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
-        bgView.backgroundColor = UIColor.black
-        bgView.isUserInteractionEnabled = true
-        let recoverPicture = UITapGestureRecognizer(target: self, action: #selector(recoverPicture(tap:)))
-        bgView.addGestureRecognizer(recoverPicture)
+        
+        let tag = indexPath.section*eachSectionCount!+indexPath.row
         
         let cell = self.imageCollectionView?.cellForItem(at: indexPath)
-        let imageView = UIImageView(image: image)
+        self.laseImageView = UIImageView(image: image)
         
         //获取cell相对于整个屏幕的位置
         let window = UIApplication.shared.keyWindow
         let rect = cell?.convert((cell?.bounds)!, to: window)
         let showFrame = rect
         
-        imageView.frame = bgView.convert(showFrame!, from: self.currentVC?.view)
-        bgView.addSubview(imageView)
+        self.laseImageView?.frame = bgView!.convert(showFrame!, from: self.currentVC?.view)
+        bgView!.addSubview(self.laseImageView!)
         
-        UIApplication.shared.keyWindow?.addSubview(bgView)
+        self.bgView?.backgroundColor = UIColor.black
+        UIApplication.shared.keyWindow?.addSubview(bgView!)
         
-        self.laseImageView = imageView
         self.originalFrame = showFrame!
-        self.scrollView = bgView
-        self.scrollView?.maximumZoomScale = 2.0
-        self.scrollView?.delegate = self
-        UIView.animate(withDuration: 0.5) {
-            var frame = imageView.frame
-            frame.size.width = bgView.frame.size.width
-            frame.size.height = frame.size.width*((imageView.image?.size.height)!/(imageView.image?.size.width)!)
-            frame.origin.x = 0
-            frame.origin.y = (bgView.frame.size.height-frame.size.height)*0.5
-            imageView.frame = frame
+        
+        UIView.animate(withDuration: 0.5, animations: { 
+            var frame = self.laseImageView?.frame
+            frame?.size.width = self.bgView!.frame.size.width
+            frame?.size.height = (frame?.size.width)!*((self.laseImageView?.image?.size.height)!/(self.laseImageView?.image?.size.width)!)
+            frame?.origin.x = 0
+            frame?.origin.y = (self.bgView!.frame.size.height-(frame?.size.height)!)*0.5
+            self.laseImageView?.frame = frame!
+        }) { (result) in
+            UIApplication.shared.keyWindow?.addSubview(self.showScrollView)
+            self.showScrollView.dataSourceArr.removeAll()
+            for image in self.imageArray!{
+                self.showScrollView.dataSourceArr.append(image)
+            }
+            self.showScrollView.dataSourceArr.remove(at: (self.imageArray?.count)!-1)
+            self.showScrollView.addImagesToScrollView(tag: tag)
+            self.showScrollView.isHidden = false
+            self.bgView?.isHidden = true
         }
+        
     }
     
     //恢复图片大小
     func recoverPicture(tap: UITapGestureRecognizer) {
-        self.scrollView?.contentOffset = CGPoint.zero
+        self.bgView?.isHidden = false
+        showScrollView.isHidden = true
         UIView.animate(withDuration: 0.5, animations: {
             self.laseImageView?.frame = self.originalFrame!
-            tap.view?.backgroundColor = UIColor.clear
+            self.bgView?.backgroundColor = UIColor.clear
         }) { (finisheh) in
-            tap.view?.removeFromSuperview()
-            self.scrollView = nil
-            self.laseImageView = nil
+            self.laseImageView?.removeFromSuperview()
+            self.bgView?.removeFromSuperview()
+            self.showScrollView.removeFromSuperview()
         }
     }
     
